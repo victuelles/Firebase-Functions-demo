@@ -6,12 +6,20 @@ const cors = require('cors')({origin:true});
 const fs = require('fs');
 const mkdirp = require('mkdirp-promise');
 const Busboy = require('busboy');
+var admin = require("firebase-admin");
+const UUID = require("uuid-v4");
 
 const gcconfig={
     projectId: 'contentether',
     keyFilename:'contentether-firebase-adminsdk-emjwm-2ee9544b3a.json'
 }
 const gcs = require('@google-cloud/storage')(gcconfig);
+
+// Initialize the app with a service account, granting admin privileges
+admin.initializeApp({
+  credential: admin.credential.cert(gcconfig.keyFilename),
+  databaseURL: "https://contentether.firebaseio.com"
+});
 
 // // Create and Deploy Your First Cloud Functions
 // // https://firebase.google.com/docs/functions/write-firebase-functions
@@ -63,28 +71,46 @@ exports.uploadFile = functions.https.onRequest((req, res) => {
 
       const busboy = new Busboy({ headers: req.headers });
       let uploadData = null;
-  
+      //save to realtime database
+      var db = admin.database();
+      var ref = db.ref("users");  
+      let userUID='';
       busboy.on("file", (fieldname, file, filename, encoding, mimetype) => {
         const filepath = path.join(os.tmpdir(), filename);
         uploadData = { file: filepath, type: mimetype };
         file.pipe(fs.createWriteStream(filepath));
+        userUID=path.parse(filename).name;
+
       });
   
       busboy.on("finish", () => {
+        let uuid = UUID();
+
         const bucket = gcs.bucket("contentether.appspot.com");
         bucket
           .upload(uploadData.file, {
             uploadType: "media",
             metadata: {
               metadata: {
-                contentType: uploadData.type
+                contentType: uploadData.type,
+                firebaseStorageDownloadTokens: uuid
               }
             }
           })
-          .then(() => {
-           return res.status(200).json({
-              message: "It worked!"
-            });
+          .then((data) => {
+            let file = data[0];
+            const downloadURL="https://firebasestorage.googleapis.com/v0/b/" + bucket.name + "/o/" + encodeURIComponent(file.name) + "?alt=media&token=" + uuid;
+            let uid=userUID.substring(0,userUID.indexOf('_ID'))
+              // handle url 
+              var userFilesRef = ref.child(uid);
+              userFilesRef.update({
+                'photoUrlId':downloadURL,
+              });
+       
+
+              return res.status(200).json({
+                message: "It worked!"
+              });
           })
           .catch(err => {
            return res.status(500).json({

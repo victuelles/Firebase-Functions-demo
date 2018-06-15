@@ -14,11 +14,12 @@
     "busboy": "^0.2.14",
     "child-process-promise": "^2.2.1",
     "cors": "^2.8.4",
-    "firebase-admin": "~5.12.1",
+    "firebase-admin": "^5.12.1",
     "firebase-functions": "^1.0.3",
     "formidable": "^1.2.1",
     "mkdirp": "^0.5.1",
-    "mkdirp-promise": "^5.0.1"
+    "mkdirp-promise": "^5.0.1",
+    "uuid-v4": "^0.1.0"
   },
   "devDependencies": {
     "eslint": "^4.12.0",
