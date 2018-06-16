@@ -20,11 +20,9 @@ admin.initializeApp({
   credential: admin.credential.cert(gcconfig.keyFilename),
   databaseURL: "https://contentether.firebaseio.com"
 });
+const  db = admin.database();
+const storageRef=admin.storage();
 
-// // Create and Deploy Your First Cloud Functions
-// // https://firebase.google.com/docs/functions/write-firebase-functions
-//
-/*
 exports.onFileChange= functions.storage.object().onFinalize(object => {
     const bucket = object.bucket;
     const contentType = object.contentType;
@@ -40,25 +38,66 @@ exports.onFileChange= functions.storage.object().onFinalize(object => {
         console.log('We already renamed that file!');
         return;
     }
-
+    let uuid = UUID();
     const destBucket = gcs.bucket(bucket);
     const tmpFilePath = path.join(os.tmpdir(), path.basename(filePath));
-    const metadata = { contentType: contentType };
-    return destBucket
+    const metadata = { contentType: contentType,
+                      metadata: {
+                        firebaseStorageDownloadTokens: uuid
+                      }
+                   };
+    
+     return destBucket
         .file(filePath)
         .download({
             destination: tmpFilePath
         }).then(() => {
             return spawn('convert', [tmpFilePath, '-resize', '500x500', tmpFilePath]);
         }).then(() => {
-            return destBucket.upload(tmpFilePath, {
+            //save
+      //    console.log("tmpFilePath=",tmpFilePath);
+       //   console.log("metadata=",metadata);
+           return destBucket.upload(tmpFilePath, {
             destination: 'resized-' + path.basename(filePath),
             metadata: metadata
-        })
+            });
+          }).then((data) => {
+          let file = data[0];
+          userUID=path.parse(filePath).name;
+          let uid=userUID.substring(0,userUID.indexOf('_ID'))
+          console.log("file.name =",file.name); //resized-kMhtzqVUGTXEilsPqriUwTV6O1t1_ID.jpg
+          console.log("uid =",uid);
+          const img_thumb_url = 'https://firebasestorage.googleapis.com/v0/b/'+ destBucket.name + '/o/'
+          + encodeURIComponent(file.name)
+          + '?alt=media&token='
+          + uuid
+
+          console.log("img_thumb_url =",img_thumb_url);
+          //Save to realtime db /users/$uid/
+          var ref = db.ref("users"); 
+          var userFilesRef = ref.child(uid);
+          userFilesRef.update({
+            'photoUrlIdThumb':img_thumb_url,
+          });
+
+          var thumbRef = storageRef.child(file.name);
+          thumbRef.getDownloadURL().then((url)=> {
+            console.log("getDownloadURL =",url);
+            return url;
+          }).catch((error)=> {
+            console.log(error)
+          });
+
+
+    
+        return data;
+
+     }).catch(err =>{
+        return err
      });
 });
 
-*/
+
 
 exports.uploadFile = functions.https.onRequest((req, res) => {
     cors(req, res, () => {
@@ -72,7 +111,7 @@ exports.uploadFile = functions.https.onRequest((req, res) => {
       const busboy = new Busboy({ headers: req.headers });
       let uploadData = null;
       //save to realtime database
-      var db = admin.database();
+
       var ref = db.ref("users");  
       let userUID='';
       busboy.on("file", (fieldname, file, filename, encoding, mimetype) => {
@@ -84,7 +123,7 @@ exports.uploadFile = functions.https.onRequest((req, res) => {
       });
   
       busboy.on("finish", () => {
-        let uuid = UUID();
+        let  uuid = UUID();
 
         const bucket = gcs.bucket("contentether.appspot.com");
         bucket
@@ -131,7 +170,7 @@ const JPEG_EXTENSION = '.jpg';
  * When an image is uploaded in the Storage bucket it is converted to JPEG automatically using
  * ImageMagick.
  */
- /*
+
 exports.imageToJPG = functions.storage.object().onFinalize((object) => {
   const filePath = object.name;
   const baseFileName = path.basename(filePath, path.extname(filePath));
@@ -174,4 +213,3 @@ exports.imageToJPG = functions.storage.object().onFinalize((object) => {
     return;
   });
 });
-*/
